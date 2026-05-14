@@ -28,8 +28,6 @@ venv/
 env/
 ENV/
 
-# uv
-uv.lock
 
 # Environment
 .env
