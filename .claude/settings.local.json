@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p /Users/yiming/.claude/projects/-Users-yiming-Documents-Claude-Projects-Red-note-content-agent/memory/)",
+      "Bash(uv run *)",
+      "Bash(grep -v \"^$\")",
+      "Read(//private/var/folders/4h/9fwqfdt17fvcw4jqmr6fkcmh0000gn/T/xhs_test_viz_mypoyi04/**)",
+      "Read(//private/tmp/**)",
+      "Bash(PYTHONPATH=src uv run python -)",
+      "Bash(curl -s \"https://steamcharts.com/app/1145360/chart-data.json\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(f'entries: {len\\(d\\)}'\\); print\\('first 3:', d[:3]\\); print\\('last 3:', d[-3:]\\)\")",
+      "Bash(PYTHONPATH=src uv run pytest -q)",
+      "Bash(PYTHONPATH=src uv run python scripts/run_pipeline_once.py --no-push)",
+      "Bash(ls /var/folders/4h/9fwqfdt17fvcw4jqmr6fkcmh0000gn/T/xhs_viz_fug81nbn/)",
+      "Bash(curl -s \"https://steamspy.com/api.php?request=genre&genre=Action\")",
+      "Bash(curl -s \"https://steamspy.com/api.php?request=top100in2weeks\")",
+      "Bash(curl -s \"https://steamspy.com/api.php?request=appdetails&appid=730\")",
+      "Bash(curl -s -A \"xhs_game_agent/0.1\" \"https://www.reddit.com/r/Games/search.json?q=Red+Dead+Redemption+2&sort=top&t=month&limit=3\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); posts=d['data']['children']; [print\\(p['data']['title'][:80], '|', p['data']['score']\\) for p in posts]\")",
+      "Bash(curl -s -A \"xhs_game_agent/0.1\" \"https://www.reddit.com/search.json?q=%22Red+Dead+Redemption+2%22+review&sort=top&t=year&limit=5&type=link\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); posts=d['data']['children']; [print\\(p['data']['subreddit'],'|',p['data']['title'][:70],'|',p['data']['score']\\) for p in posts]\")",
+      "Bash(curl -s -A \"xhs_game_agent/0.1\" \"https://www.reddit.com/r/RDR2/top.json?limit=5&t=month\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); posts=d['data']['children']; [print\\(p['data']['title'][:80],'|',p['data']['selftext'][:100].replace\\('\\\\n',' '\\),'|score:',p['data']['score']\\) for p in posts]\")",
+      "Bash(curl -s -A \"xhs_game_agent/0.1\" \"https://www.reddit.com/search.json?q=Red+Dead+Redemption+2&type=sr&limit=3\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); srs=d['data']['children']; [print\\(s['data']['display_name'],'|',s['data']['subscribers'],'|',s['data']['public_description'][:80]\\) for s in srs]\")",
+      "Bash(curl -s -A \"Mozilla/5.0 \\(Macintosh; Intel Mac OS X 10_15_7\\) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36\" \"https://www.reddit.com/r/subnautica/top.rss?t=month\")",
+      "Bash(curl -s -A \"Mozilla/5.0\" \"https://old.reddit.com/r/subnautica/top.json?t=month&limit=3\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d['data']['children'][0]['data']['title'][:60]\\)\")",
+      "Bash(uv add *)",
+      "Bash(uv remove *)",
+      "Bash(uv sync *)",
+      "Bash(kill 26314 26315)",
+      "Bash(echo \"Bot PID: $!\")",
+      "Bash(open /tmp/test_dark_card.png /tmp/test_cover.png /tmp/test_rec.png)",
+      "Bash(ls /var/folders/4h/9fwqfdt17fvcw4jqmr6fkcmh0000gn/T/xhs_viz_t4aiqhio/)",
+      "Bash(cp /var/folders/4h/9fwqfdt17fvcw4jqmr6fkcmh0000gn/T/xhs_viz_t4aiqhio/*.png /tmp/xhs_latest/)",
+      "Bash(mkdir -p /tmp/xhs_latest)",
+      "Bash(kill 26488 26489)",
+      "Bash(git init *)",
+      "Bash(git add *)"
+    ]
+  }
+}

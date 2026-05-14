@@ -1,0 +1,15 @@
+{
+  "top_sellers": {
+    "items": [
+      {"id": 1086940, "name": "Baldur's Gate 3"},
+      {"id": 730, "name": "Counter-Strike 2"}
+    ]
+  },
+  "new_releases": {
+    "items": [
+      {"id": 9999001, "name": "BrandNewGame"}
+    ]
+  },
+  "specials": {"items": []},
+  "coming_soon": {"items": []}
+}

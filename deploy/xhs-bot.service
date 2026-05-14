@@ -1,0 +1,17 @@
+[Unit]
+Description=XHS Agent — Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/xhs-agent
+ExecStart=/opt/xhs-agent/.venv/bin/python scripts/run_telegram_bot.py
+Restart=always
+RestartSec=15
+EnvironmentFile=/opt/xhs-agent/.env
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,265 @@
+# ============================================================
+# tuning.yaml — 中央调参文件
+# ============================================================
+# 修改后 **重启 pipeline / scheduler / bot 进程**才会生效（值缓存到内存）。
+#
+# 与本文件不在一起的"风格相关"调整：
+#   - 人设 / 输出格式 / 标题公式 → src/xhs_agent/config/persona.yaml
+#   - 5 个内容模板（hook/structure/tone）→ src/xhs_agent/domain/games/templates.py
+#   - prompt 拼装逻辑（具体怎么塞进 LLM）→ src/xhs_agent/prompt/assembler.py
+#   - 违禁词 → src/xhs_agent/utils/prohibited_words.py
+# 多 domain 时把下方 games: 同级再加一个键即可（比如 movies:）。
+# ============================================================
+
+current_domain: games
+
+# ============================================================
+# 全局：选题/写作的行为偏好
+# ============================================================
+judgment:
+  # Haiku 选题严格度：strict / balanced / lenient
+  # - strict   = 宁缺毋滥，可能整批拒绝
+  # - balanced = 默认
+  # - lenient  = 宁可写出几篇不够完美的（推荐起步用）
+  strictness: lenient
+
+  # 当 Haiku 全部拒绝时，代码强制按 score 取 top N 转 worth_writing=true
+  # 设 0 = 关闭 fallback（真的整批拒就 0 候选）
+  force_approve_when_zero: 2
+
+content:
+  # 一次 pipeline 跑最多生成几篇候选
+  max_candidates_per_run: 3
+  # prompt 注入的活跃梗数（V0 表是空的，写好 trend pipeline 后才有）
+  active_memes_top_k: 5
+  # prompt 注入的爆款样本数（你用 scripts/add_exemplar.py 喂的）
+  exemplars_per_template: 3
+
+# ============================================================
+# games domain 的具体阈值
+# ============================================================
+games:
+
+  # ──────────── 5 个信号检测器 ────────────
+  signals:
+
+    # 信号 1：差评爆发
+    negative_burst:
+      drop_threshold: 0.15           # 7d 好评率下跌超过这个 → 触发
+      drop_strong_threshold: 0.30    # 下跌超过这个 → urgent (强触发)
+      volume_threshold: 100          # 7d 评论数下限（少于这个不算事件）
+      volume_strong_threshold: 500   # 超过这个 → urgent
+
+    # 信号 2：好评爆发 / 老游戏复活
+    positive_burst:
+      rise_threshold: 0.10           # 7d 好评率上涨超过这个 → 触发
+      volume_threshold: 200
+      min_age_days: 180              # 上架天数下限（排除新游蜜月期）
+
+    # 信号 3：在线人数异常
+    player_spike:
+      absolute_threshold: 10000      # 当前在线人数下限
+      velocity_threshold: 2.0        # 当前/30d 平均（V1 才有真 baseline）
+      velocity_strong: 5.0           # urgent 阈值
+      fallback_ratio_threshold: 0.5  # V0 fallback：current/all_time_peak
+      max_age_for_fallback_days: 90  # S5：fallback 只在新游（<90天）触发，避免老巨头误报
+
+    # 信号 4：新品爆款
+    new_release_spike:
+      max_age_days: 7                # 上架几天内才算"新"
+      top_seller_rank_cutoff: 20     # 热销榜 top N
+      player_threshold: 5000         # 当前在线下限
+
+    # 信号 5：评论数激增
+    review_surge:
+      velocity_threshold: 3.0           # 24h 评论 / 30d 平均
+      fallback_velocity_threshold: 5.0  # V0 fallback：24h / lifetime 日均
+
+    # 信号 6：折扣值不值（S5 新增）
+    discount_event:
+      min_discount_pct: 20       # 折扣率下限
+      urgent_discount_pct: 50    # ≥50% off → urgent
+      min_reviews: 50            # 近期评论数下限（太少评论没有分析价值）
+
+    # 信号 7：小众神作（S5 新增）
+    hidden_gem:
+      min_reviews: 100           # 总评论数下限（有足够评价）
+      max_reviews: 5000          # 总评论数上限（真的是小众）
+      min_positive_rate: 0.85    # 好评率下限
+      min_age_days: 180          # 上架天数下限（排除蜜月期）
+
+    # 信号 8：playtime_split（S5 新增，依赖 playtime buckets 聚合）
+    playtime_split:
+      min_reviews_in_pool: 15          # 分析池最少评论数
+      short_neg_share_threshold: 0.30  # 短时差评占比下限
+      long_pos_share_threshold: 0.20   # 长时好评占比下限
+
+  # ──────────── 采集器 ────────────
+  collectors:
+    steam:
+      default_limit: 30                # 不传 --limit 时拉多少
+      request_interval_sec: 0.5        # 每次 API 调用之间的礼貌间隔
+      language: schinese               # 评论 / 商店页语言
+    steamspy:
+      request_interval_sec: 1.0
+
+# ============================================================
+# 路径
+# ============================================================
+paths:
+  # 用 add_exemplar.py 加截图时存到这里（相对项目根）
+  exemplar_screenshots: ./exemplar_screenshots
+  # data 缓存目录（V1 trend pipeline 用 / S7 渲染图存放）
+  data: ./data
+  # 字体目录（S7 启用，matplotlib 用 Noto Sans CJK SC）
+  fonts: ./assets/fonts
+
+# ============================================================
+# v5 新增 — 内容 / 合规
+# ============================================================
+
+# Hashtag policy — XHS Editor 输出时必须按这个拼装
+# 见 DESIGN_v5.md § 2
+hashtag:
+  # 固定通用，每篇都带（建议 3-4 个）
+  fixed:
+    - "#Steam游戏"
+    - "#真实玩家评论"
+    - "#游戏值不值得买"
+    - "#游戏评论研究所"
+
+  # 每个 content_type 对应一组 hashtag（建议从中选 2-3 个）
+  by_content_type:
+    差评爆炸:
+      - "#差评如潮"
+      - "#首发翻车"
+      - "#游戏避坑"
+      - "#Steam差评"
+    口碑反转:
+      - "#口碑反转"
+      - "#游戏更新"
+      - "#现在值得玩吗"
+      - "#Steam好评"
+    小众神作:
+      - "#小众游戏"
+      - "#独立游戏"
+      - "#冷门神作"
+      - "#Steam小众游戏"
+    折扣值不值:
+      - "#Steam折扣"
+      - "#史低游戏"
+      - "#愿望单"
+      - "#游戏省钱"
+    评论区反差:
+      - "#Steam评论区"
+      - "#玩家真实评价"
+      - "#玩很久还差评"
+      - "#游戏后期体验"
+    新品爆款:
+      - "#新游推荐"
+      - "#Steam新游"
+      - "#游戏发售"
+
+  # Steam genre (英文) → 中文 hashtag 翻译表
+  # 用于把游戏的 genres list 转成 hashtag。不在表里的 genre 跳过。
+  genre_translations:
+    Indie: "#独立游戏"
+    Strategy: "#策略游戏"
+    Action: "#动作游戏"
+    Adventure: "#冒险游戏"
+    RPG: "#RPG"
+    Casual: "#休闲游戏"
+    Simulation: "#模拟游戏"
+    Sports: "#体育游戏"
+    Racing: "#竞速游戏"
+    Massively Multiplayer: "#MMO"
+    Free To Play: "#免费游戏"
+    Early Access: "#抢先体验"
+
+  # 一篇帖子总 hashtag 数的硬约束
+  total_min: 5
+  total_max: 10
+
+# ============================================================
+# Compliance — banned phrase 替换表
+# v5 S4 用：简单 substring 替换。
+# v5 S6 时 Compliance Guard agent 会引用同一份表 + 加 LLM check 兜底。
+# ============================================================
+compliance:
+  banned_phrases_to_rewrite:
+    "垃圾游戏":         "目前首发状态不适合普通玩家原价冲"
+    "千万别买":         "如果你在意优化和稳定性，建议先观望"
+    "必买神作":         "如果你喜欢这个类型，值得放进愿望单"
+    "闭眼入":           "如果你喜欢这个类型，可以考虑"
+    "所有玩家都在骂":    "最近差评比较集中，主要集中在几个问题上"
+    "全部玩家觉得":      "最近差评比较集中，部分玩家反映"
+    "全部玩家都觉得":    "最近差评比较集中，部分玩家反映"
+    "年度最烂":         "目前首发状态争议较大"
+    "厂商跑路":         "更新节奏目前不明朗"
+    "谁玩谁后悔":        "不建议无脑入"
+    "震撼炸裂":         "体验明显"
+    "无与伦比":         "在同类里相对突出"
+    "史诗级":           "份量足"
+    "神级":             "评价非常高"
+
+  # 标题硬约束
+  title:
+    must_contain_brackets: true       # 必须《》包名字
+    min_chars: 16
+    max_chars: 30
+
+  # 评论引用硬约束
+  review_quote:
+    max_chars_per_quote: 100          # 每条引用 ≤ 100 字
+    max_quotes_per_post: 5
+
+# ============================================================
+# Review Miner taxonomy — 占位，S5 启用
+# ============================================================
+review_themes:
+  - 性能/优化
+  - 服务器/联机
+  - Bug/崩溃
+  - 价格/内容量
+  - 玩法/手感
+  - 剧情/美术
+  - 平衡性
+  - 中文/本地化
+  - DLC/商业化
+  - 反作弊/账号
+  - 新手引导/UI
+  - 后期重复
+  - 更新方向
+  - 其他
+
+# Playtime 分组（小时）— S5 启用
+playtime_buckets:
+  short_hours_max: 2        # < 2h = 短时
+  long_hours_min: 20        # ≥ 20h = 长时
+
+# ============================================================
+# Visualization eligibility thresholds — P0 升级
+# 每个图表类型的最低数据要求；不满足时走 fallback 页面或跳过
+# ============================================================
+# ============================================================
+# Candidate selection quality gate
+# ============================================================
+candidate_selection:
+  # Standard review-analysis candidate must have this many recent reviews
+  min_review_count_7d_for_standard_candidate: 50
+  # At most this many low-review (prelaunch) candidates per run
+  max_prelaunch_candidates_per_run: 1
+  # force_pick only promotes candidates with ≥ this many 7d reviews
+  force_pick_min_review_count_7d: 50
+
+viz:
+  rate_chart:
+    min_rate_diff: 0.02          # 历史 vs 近7天好评率差值 ≥ 2% 才画（原 0.05，过严）
+  theme_chart:
+    min_negative_reviews: 10     # 近期差评数下限（原 30，过严）
+    min_top_theme_share: 0.15    # 最大主题占比 ≥ 15%（原 0.25，过严）
+    min_top3_total_share: 0.35   # top-3 主题合计 ≥ 35%（原 0.50，过严）
+  playtime_chart:
+    min_reviews_with_playtime: 30   # 有时长数据的评论数下限（原 50）
+    min_short_neg_share: 0.25       # 短时差评占比 ≥ 25%（或）
+    min_long_pos_share: 0.15        # 长时好评占比 ≥ 15% → 有明显反差才画

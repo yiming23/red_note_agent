@@ -1,0 +1,17 @@
+[Unit]
+Description=XHS Agent — Content Scheduler
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/xhs-agent
+ExecStart=/opt/xhs-agent/.venv/bin/python scripts/run_scheduler.py
+Restart=always
+RestartSec=15
+EnvironmentFile=/opt/xhs-agent/.env
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

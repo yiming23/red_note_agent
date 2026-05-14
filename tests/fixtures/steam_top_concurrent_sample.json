@@ -1,0 +1,9 @@
+{
+  "response": {
+    "ranks": [
+      {"rank": 1, "appid": 730, "concurrent_in_game": 1200000, "peak_in_game": 1500000, "name": "Counter-Strike 2"},
+      {"rank": 2, "appid": 570, "concurrent_in_game": 800000, "peak_in_game": 1300000, "name": "Dota 2"},
+      {"rank": 3, "appid": 1172470, "concurrent_in_game": 250000, "peak_in_game": 300000, "name": "Apex Legends"}
+    ]
+  }
+}
