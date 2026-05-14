@@ -16,6 +16,7 @@ jobs:
           key: ${{ secrets.DO_SSH_KEY }}
           script: |
             set -e
+            export PATH="$HOME/.local/bin:$PATH"
             cd /opt/xhs-agent
             git pull origin main
             uv sync --frozen
