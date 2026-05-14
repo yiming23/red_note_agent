@@ -136,3 +136,4 @@ V1 启用图片生成时再申请。https://fal.ai/dashboard/keys → 创建 API
 - 完成一个模块就 commit
 - 每次工作 session 结尾更新 HANDOFF.md
 - 数据库结构变更走 alembic migration，不直接改 models.py 后跑 create_all
+# deployed Thu May 14 14:46:53 EDT 2026
