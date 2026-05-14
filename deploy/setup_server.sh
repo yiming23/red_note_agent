@@ -18,6 +18,7 @@ apt-get install -y -qq git curl
 
 echo "=== [2/6] install uv ==="
 curl -LsSf https://astral.sh/uv/install.sh | sh
+source "$HOME/.local/bin/env" 2>/dev/null || true
 export PATH="$HOME/.local/bin:$PATH"
 
 echo "=== [3/6] clone repo ==="
