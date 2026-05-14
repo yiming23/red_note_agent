@@ -65,11 +65,13 @@ _FONT_CANDIDATES_BOLD = [
     _ASSET_FONTS / "NotoSansCJKsc-Bold.otf",
     Path("/System/Library/Fonts/PingFang.ttc"),
     Path("/usr/share/fonts/truetype/noto/NotoSansCJK-Bold.ttc"),
+    Path("/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"),
 ]
 _FONT_CANDIDATES_REGULAR = [
     _ASSET_FONTS / "NotoSansCJKsc-Regular.otf",
     Path("/System/Library/Fonts/PingFang.ttc"),
     Path("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc"),
+    Path("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"),
 ]
 
 

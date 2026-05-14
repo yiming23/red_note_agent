@@ -14,7 +14,7 @@ fi
 
 echo "=== [1/6] apt packages ==="
 apt-get update -qq
-apt-get install -y -qq git curl
+apt-get install -y -qq git curl fonts-noto-cjk
 
 echo "=== [2/6] install uv ==="
 curl -LsSf https://astral.sh/uv/install.sh | sh
