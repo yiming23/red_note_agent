@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING, Optional
 
 from xhs_agent.observability.logger import get_logger
 from xhs_agent.processors.chart_eligibility import (
+    check_language_region_gap,
     check_playtime_dist,
     check_player_history,
     check_price_history,
@@ -139,6 +140,14 @@ def build_pages(
         log.info("page_added", type="similar_games", reason=reason)
     else:
         log.info("page_skipped", type="similar_games", reason=reason)
+
+    # ── Slot H: language/region positive-rate gap (gated — only if there's a real story) ──
+    eligible, reason, _ = check_language_region_gap(entity)
+    if eligible:
+        pages.append(_language_region_page(entity))
+        log.info("page_added", type="language_region", reason=reason)
+    else:
+        log.info("page_skipped", type="language_region", reason=reason)
 
     # ── Slot D: review_quotes (gated — need ≥ 3 excerpts, skipped if trend card already embeds quotes) ─────
     trend_added = any(p.get("type") == "trend" for p in pages)
@@ -595,6 +604,71 @@ def _similar_games_page(entity: "GameEntity") -> dict:
             f"本游戏好评率：{target_rate}%",
             f"同类 {len(peers)} 款均值：{peer_avg}%",
         ] if x],
+        "image_path": None,
+    }
+
+
+_LANG_LABELS_CN = {
+    "schinese": "国区（简中）",
+    "tchinese": "繁中",
+    "english": "英语区",
+    "russian": "俄语区",
+    "japanese": "日语区",
+    "koreana": "韩语区",
+    "german": "德语区",
+    "french": "法语区",
+    "spanish": "西语区",
+    "polish": "波兰语区",
+    "portuguese": "葡语区",
+    "brazilian": "巴西区",
+    "turkish": "土耳其区",
+}
+_CN_LANGS = {"schinese", "tchinese"}
+
+
+def _language_region_page(entity: "GameEntity") -> dict:
+    """Per-language/region positive-rate comparison (gated — needs a real gap)."""
+    rates: dict = entity.review_positive_rate_by_language or {}
+    dist: dict = entity.review_language_dist or {}
+    rows = sorted(rates.items(), key=lambda kv: -kv[1])
+
+    cn_rate = next((r for lang, r in rows if lang in _CN_LANGS), None)
+    other_rows = [(lang, r) for lang, r in rows if lang not in _CN_LANGS]
+    best = rows[0]
+    worst = rows[-1]
+
+    def _label(lang: str) -> str:
+        return _LANG_LABELS_CN.get(lang, lang)
+
+    if cn_rate is not None and other_rows:
+        gap_lang, gap_rate = max(other_rows, key=lambda kv: abs(kv[1] - cn_rate))
+        if cn_rate > gap_rate:
+            key_message = f"国区好评率 {cn_rate*100:.0f}%，{_label(gap_lang)}仅 {gap_rate*100:.0f}%"
+            conclusion = f"国区玩家明显更买账，{_label(gap_lang)}口碑落后 {abs(cn_rate-gap_rate)*100:.0f} 个百分点，可能涉及本地化、定价或文化差异。"
+        else:
+            key_message = f"{_label(gap_lang)}好评率 {gap_rate*100:.0f}%，国区仅 {cn_rate*100:.0f}%"
+            conclusion = f"国区口碑落后 {_label(gap_lang)} {abs(cn_rate-gap_rate)*100:.0f} 个百分点，值得关注国区特有的吐槽点（本地化/联机/定价）。"
+    else:
+        key_message = f"{_label(best[0])} {best[1]*100:.0f}% vs {_label(worst[0])} {worst[1]*100:.0f}%"
+        conclusion = f"不同地区好评率差异明显，最高与最低相差 {abs(best[1]-worst[1])*100:.0f} 个百分点。"
+
+    insights = [
+        f"{_label(lang)}：好评率 {rate*100:.0f}%（样本 {dist.get(lang, 0)} 条）"
+        for lang, rate in rows[:4]
+    ]
+
+    return {
+        "page": 0,
+        "type": "language_region",
+        "title": "各地区好评率对比",
+        "body": conclusion,
+        "chart_type": "language_region",
+        "data": {},
+        "key_message": key_message,
+        "subtitle": "数据来源：Steam 评论语言分布",
+        "how_to_read": "红色条=国区，灰色条=其他地区，按好评率排序",
+        "conclusion": conclusion,
+        "insights": insights,
         "image_path": None,
     }
 

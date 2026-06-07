@@ -83,6 +83,23 @@ def check_price_history(entity: "GameEntity") -> tuple[bool, str, None]:
     return True, f"price_events_{len(history)}_discounts_{len(discount_events)}", None
 
 
+def check_language_region_gap(entity: "GameEntity") -> tuple[bool, str, None]:
+    """Eligible only when there's a *meaningful* spread between regions' positive rates.
+
+    We don't want to show this chart for every game — only when it tells a story
+    (e.g. "国区好评率 80%，但俄语区只有 35%"). Requires ≥2 languages with enough
+    sample size, AND a gap of ≥15 percentage points between max and min.
+    """
+    rates: dict = getattr(entity, "review_positive_rate_by_language", None) or {}
+    if len(rates) < 2:
+        return False, f"too_few_languages_{len(rates)}", None
+    spread = (max(rates.values()) - min(rates.values())) * 100
+    _MIN_GAP = 15
+    if spread < _MIN_GAP:
+        return False, f"gap_too_small_{spread:.0f}pp", None
+    return True, f"gap_{spread:.0f}pp", None
+
+
 def check_similar_games(entity: "GameEntity") -> tuple[bool, str, None]:
     """Eligible if we have ≥3 peer games with review data."""
     peers = getattr(entity, "similar_games", None) or []

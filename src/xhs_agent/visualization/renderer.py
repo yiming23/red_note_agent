@@ -49,6 +49,7 @@ def render_all_pages(
         "price_history":        _render_price_history,
         "player_history":       _render_player_history,
         "similar_games":        _render_similar_games,
+        "language_region":      _render_language_region,
         "game_info_card":       _render_text_card,
         # kept for safety / backward-compat with existing post records
         "conclusion":           _render_text_card,
@@ -259,6 +260,11 @@ def _render_player_history(*, page, entity, out_path, **_kw) -> None:
 def _render_similar_games(*, page, entity, out_path, **_kw) -> None:
     from xhs_agent.visualization.chart_similar_games import render_similar_games_chart
     render_similar_games_chart(entity=entity, page=page, out_path=out_path)
+
+
+def _render_language_region(*, page, entity, out_path, **_kw) -> None:
+    from xhs_agent.visualization.chart_language_region import render_language_region_chart
+    render_language_region_chart(entity=entity, page=page, out_path=out_path)
 
 
 def _render_trend(*, page, entity, theme_summary, out_path, **_kw) -> None:
