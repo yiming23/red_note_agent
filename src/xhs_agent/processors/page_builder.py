@@ -652,9 +652,8 @@ def _language_region_page(entity: "GameEntity") -> dict:
         key_message = f"{_label(best[0])} {best[1]*100:.0f}% vs {_label(worst[0])} {worst[1]*100:.0f}%"
         conclusion = f"不同地区好评率差异明显，最高与最低相差 {abs(best[1]-worst[1])*100:.0f} 个百分点。"
 
-    total_sampled = sum(dist.get(lang, 0) for lang, _ in rows)
     insights = [
-        f"{_label(lang)}：好评率 {rate*100:.0f}%（样本 {dist.get(lang, 0)} 条）"
+        f"{_label(lang)}：历史好评率 {rate*100:.0f}%（共 {dist.get(lang, 0):,} 条评论）"
         for lang, rate in rows[:10]
     ]
 
@@ -666,8 +665,8 @@ def _language_region_page(entity: "GameEntity") -> dict:
         "chart_type": "language_region",
         "data": {},
         "key_message": key_message,
-        "subtitle": f"基于近 {total_sampled} 条评论 · 好评/差评判定取自 Steam 官方 voted_up 标记",
-        "how_to_read": "红色条=国区，灰色条=其他地区；好评率=该地区评论中 Steam 标记为「推荐」的占比，按好评率排序",
+        "subtitle": "各地区历史全部评论的好评率 · 好评/差评判定取自 Steam 官方 voted_up 标记",
+        "how_to_read": "红色条=国区，灰色条=其他地区；好评率=该地区历史全部评论中 Steam 标记为「推荐」的占比，按好评率排序",
         "conclusion": conclusion,
         "insights": insights,
         "image_path": None,

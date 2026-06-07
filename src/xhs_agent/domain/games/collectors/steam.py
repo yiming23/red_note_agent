@@ -512,6 +512,51 @@ class SteamCollector(Collector[GameEntity]):
             chinese = lang_counts.get("schinese", 0) + lang_counts.get("tchinese", 0)
             entity.chinese_review_pct = round(chinese / len(stats_pool) * 100, 1)
 
+    # Major review languages worth checking lifetime breakdown for (deferred —
+    # only run for the few games we actually decide to write about).
+    LIFETIME_BREAKDOWN_LANGUAGES = [
+        "schinese", "tchinese", "english", "russian", "japanese",
+        "koreana", "german", "french", "spanish", "brazilian",
+    ]
+
+    def enrich_language_breakdown(self, entity: GameEntity) -> None:
+        """Replace the sample-based per-language rates with TRUE lifetime rates.
+
+        `_enrich_reviews` only sees a few hundred recent reviews, so minor-language
+        rates can be noisy/skewed toward recent sentiment. Steam's appreviews API
+        lets us query `language=<one lang>, filter=all, num_per_page=0` to get that
+        language's *all-time* total_reviews/total_positive — the real number — at
+        the cost of one lightweight request per language. Only worth doing for the
+        handful of candidates we're actually about to write content for.
+        """
+        _min_n = tuning.games.collectors.steam.min_reviews_per_language_for_rate
+        rates: dict[str, float] = {}
+        counts: dict[str, int] = {}
+        for lang in self.LIFETIME_BREAKDOWN_LANGUAGES:
+            try:
+                data = self.get_app_reviews(
+                    entity.appid,
+                    filter_="all",
+                    num_per_page=0,
+                    language=lang,
+                )
+            except CollectorError as exc:
+                log.warning("lifetime_lang_fetch_failed", appid=entity.appid, lang=lang, error=str(exc))
+                continue
+            self._sleep()
+            summary = data.get("query_summary") or {}
+            total = summary.get("total_reviews") or 0
+            positive = summary.get("total_positive") or 0
+            if total >= _min_n:
+                rates[lang] = round(positive / total, 3)
+                counts[lang] = total
+
+        if rates:
+            entity.review_positive_rate_by_language = rates
+            entity.review_language_dist = counts
+            log.info("lifetime_lang_breakdown_done", appid=entity.appid,
+                     languages=list(rates.keys()))
+
     def _sleep(self) -> None:
         if self.request_interval_sec > 0:
             time.sleep(self.request_interval_sec)

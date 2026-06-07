@@ -387,8 +387,8 @@ def _language_positive_rate_section(entity) -> str:
     for lang, rate in rows:
         label = _LANG_LABELS_CN.get(lang, lang)
         n = dist.get(lang, 0)
-        lines.append(f"- {label}：好评率 {rate * 100:.0f}%（样本 {n} 条）")
-    return "\n## 各语言/地区好评率对比（可用于发现区域性差异）\n" + "\n".join(lines) + "\n"
+        lines.append(f"- {label}：历史好评率 {rate * 100:.0f}%（该地区全部 {n:,} 条评论的真实统计，非样本估算）")
+    return "\n## 各语言/地区好评率对比（基于 Steam 各地区历史全部评论的真实好评率，可用于发现区域性差异）\n" + "\n".join(lines) + "\n"
 
 
 def _player_trend_line(entity) -> str:

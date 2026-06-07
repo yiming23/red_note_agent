@@ -242,13 +242,22 @@ def run_content_pipeline(
             "player_spike":     "new_release_heat",
         }
 
+        from xhs_agent.domain.games.collectors.steam import SteamCollector
+
         _sg_collector = SimilarGamesCollector()
         _reddit_client = RedditClient()
         _ddg_client = DuckDuckGoCollector()
+        _steam_collector = SteamCollector()
         for judgment in approved:
             entity = entities_by_id.get(judgment.signal.entity_id)
             if entity is None:
                 continue
+            # 6a0. Lifetime per-language positive rate (true totals, not a sample —
+            #      only worth the extra API calls for games we're actually writing about)
+            try:
+                _steam_collector.enrich_language_breakdown(entity)
+            except Exception as exc:
+                log.warning("lifetime_lang_breakdown_failed", appid=entity.appid, error=str(exc))
             # 6a. Similar games
             if not getattr(entity, "similar_games", None):
                 try:
