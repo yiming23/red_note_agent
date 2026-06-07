@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from xhs_agent.domain.games.entity import GameEntity
 
-_MAX_ROWS = 6  # show top N languages by sample size
+_MAX_ROWS = 10  # show top N languages by sample size
 
 _LANG_LABELS_CN = {
     "schinese": "国区（简中）",

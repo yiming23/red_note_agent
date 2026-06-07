@@ -43,7 +43,8 @@
       "Bash(grep -rn '\\\\$.*price\\\\|price.*\\\\$\\\\|\"\\\\$\"' src/xhs_agent/agents/content_director.py src/xhs_agent/agents/content_agent.py src/xhs_agent/agents/opinion_miner.py src/xhs_agent/domain/games/templates.py src/xhs_agent/domain/games/signals/discount_event.py)",
       "Bash(grep -rn '\\\\${entity\\\\.' src/xhs_agent --include=\"*.py\")",
       "Bash(git commit *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(find /var/folders -name \"test_lang2.png\" 2>/dev/null | head -1)"
     ]
   }
 }
