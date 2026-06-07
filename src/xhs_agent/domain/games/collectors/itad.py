@@ -88,7 +88,7 @@ class ItadClient:
         try:
             resp = self._http.post(
                 "/games/storelow/v2",
-                params={"key": self._key, "shops": "steam"},
+                params={"key": self._key, "shops": "steam", "country": "CN"},
                 json=[game_id],
             )
             resp.raise_for_status()
@@ -131,7 +131,7 @@ class ItadClient:
         try:
             resp = self._http.get(
                 "/games/history/v2",
-                params={"key": self._key, "id": game_id, "shops": "steam"},
+                params={"key": self._key, "id": game_id, "shops": "steam", "country": "CN"},
             )
             resp.raise_for_status()
             data = resp.json()

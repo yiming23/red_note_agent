@@ -510,7 +510,7 @@ def _build_signal_summary(
             f"历史: {entity.historical_positive_rate}"
         )
     if entity.is_on_special and entity.discount_pct:
-        parts.append(f"💰 折扣: {entity.discount_pct}% off → ${entity.final_price}")
+        parts.append(f"💰 折扣: 直降 {entity.discount_pct}% → ¥{entity.final_price}")
     if entity.current_player_count:
         parts.append(f"👥 当前在线: {entity.current_player_count}")
     if buy_rec and buy_rec.success:

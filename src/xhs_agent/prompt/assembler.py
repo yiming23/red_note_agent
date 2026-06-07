@@ -530,12 +530,17 @@ def _build_user_message(
     elif entity.is_on_special and entity.final_price is not None:
         parts = []
         if entity.discount_pct:
-            parts.append(f"当前折扣：{entity.discount_pct}% off，折后价 ${entity.final_price}，原价 ${entity.original_price}")
+            zhe = (100 - entity.discount_pct) / 10
+            parts.append(
+                f"当前折扣：直降 {entity.discount_pct}%（约 {zhe:.1f} 折，"
+                f"注意：「降价{entity.discount_pct}%」≈「{zhe:.1f}折」，不要写成「{entity.discount_pct}折」），"
+                f"折后价 ¥{entity.final_price}，原价 ¥{entity.original_price}"
+            )
         if entity.historic_low_price is not None:
             if entity.is_at_historic_low:
-                parts.append(f"📉 当前价格接近历史最低（史低 ${entity.historic_low_price}，相差 ≤5%）")
+                parts.append(f"📉 当前价格接近历史最低（史低 ¥{entity.historic_low_price}，相差 ≤5%）")
             else:
-                parts.append(f"史低记录：${entity.historic_low_price}（当前高出史低 {entity.pct_above_historic_low:.1f}%）")
+                parts.append(f"史低记录：¥{entity.historic_low_price}（当前高出史低 {entity.pct_above_historic_low:.1f}%）")
         if parts:
             price_section = "\n## 价格历史数据（请在正文里引用）\n" + "\n".join(parts) + "\n"
 

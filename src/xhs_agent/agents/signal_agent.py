@@ -372,7 +372,7 @@ def _infer_angle(signal, entity, template: str) -> str:
         if entity.discount_pct:
             parts.append(f"{entity.discount_pct}% off")
         if entity.final_price:
-            parts.append(f"折后 ${entity.final_price}")
+            parts.append(f"折后 ¥{entity.final_price}")
         if entity.is_at_historic_low:
             parts.append("接近史低")
         return "、".join(parts) + "，值不值得买？" if parts else "折扣期间值不值得入手？"

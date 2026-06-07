@@ -223,12 +223,17 @@ def _build_context(
     ]
 
     if entity.is_on_special and entity.discount_pct:
-        lines.append(f"当前折扣：{entity.discount_pct}% off（原价 ${entity.original_price}，现价 ${entity.final_price}）")
+        zhe = (100 - entity.discount_pct) / 10
+        lines.append(
+            f"当前折扣：直降 {entity.discount_pct}%（约 {zhe:.1f} 折，"
+            f"注意换算关系是「降价{entity.discount_pct}%」≈「{zhe:.1f}折」，不是「{entity.discount_pct}折」）"
+            f"（原价 ¥{entity.original_price}，现价 ¥{entity.final_price}）"
+        )
         if entity.historic_low_price is not None:
             if entity.is_at_historic_low:
-                lines.append(f"价格状态：接近历史最低（史低 ${entity.historic_low_price}）")
+                lines.append(f"价格状态：接近历史最低（史低 ¥{entity.historic_low_price}）")
             else:
-                lines.append(f"价格状态：高于史低 {entity.pct_above_historic_low:.1f}%（史低 ${entity.historic_low_price}）")
+                lines.append(f"价格状态：高于史低 {entity.pct_above_historic_low:.1f}%（史低 ¥{entity.historic_low_price}）")
 
     if theme_summary and theme_summary.success and theme_summary.themes:
         lines.append("\n## 差评主题（Review Miner）")

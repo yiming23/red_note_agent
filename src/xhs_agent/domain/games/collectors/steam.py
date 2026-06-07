@@ -302,9 +302,13 @@ class SteamCollector(Collector[GameEntity]):
         return items
 
     def get_featured(self) -> dict[str, Any]:
-        """Return featured categories: new_releases, top_sellers, specials, etc."""
+        """Return featured categories: new_releases, top_sellers, specials, etc.
+
+        cc=cn pins pricing to the China region (CNY) — our audience is CN-based,
+        so showing US-region USD prices would be misleading.
+        """
         try:
-            resp = self._client.get(URL_FEATURED)
+            resp = self._client.get(URL_FEATURED, params={"cc": "cn", "l": "schinese"})
             resp.raise_for_status()
             data = resp.json()
         except httpx.HTTPError as e:
@@ -320,7 +324,7 @@ class SteamCollector(Collector[GameEntity]):
     def get_featured_main(self) -> dict[str, Any]:
         """Return Steam store front-page featured games (featured_win list)."""
         try:
-            resp = self._client.get(URL_FEATURED_MAIN)
+            resp = self._client.get(URL_FEATURED_MAIN, params={"cc": "cn", "l": "schinese"})
             resp.raise_for_status()
             data = resp.json()
         except httpx.HTTPError as e:
@@ -333,7 +337,7 @@ class SteamCollector(Collector[GameEntity]):
 
     def get_app_details(self, appid: str, language: str = "schinese") -> Optional[dict[str, Any]]:
         """Return basic app metadata (name, release_date, type, etc.) or None on miss."""
-        params = {"appids": appid, "l": language}
+        params = {"appids": appid, "l": language, "cc": "cn"}
         try:
             resp = self._client.get(URL_APP_DETAILS, params=params)
             resp.raise_for_status()

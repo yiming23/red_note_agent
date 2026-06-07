@@ -283,9 +283,9 @@ def _game_info_page(entity: "GameEntity") -> dict:
     if entity.is_free:
         lines.append("价格：免费")
     elif entity.original_price is not None:
-        price_str = f"${entity.original_price}"
+        price_str = f"¥{entity.original_price}"
         if entity.discount_pct:
-            price_str += f" → ${entity.final_price}（-{entity.discount_pct}%）"
+            price_str += f" → ¥{entity.final_price}（-{entity.discount_pct}%）"
         lines.append(f"价格：{price_str}")
     if entity.genres:
         lines.append(f"类型：{' / '.join(entity.genres[:4])}")
@@ -437,8 +437,8 @@ def _review_quotes_page(
 def _price_page(entity: "GameEntity", buy_rec: "BuyRecommendation") -> dict:
     """Price comparison card for discounted games (Slot E)."""
     if entity.is_at_historic_low:
-        key_message = f"当前折扣接近历史最低（史低 ${entity.historic_low_price}）"
-        conclusion = f"史低附近，折后 ${entity.final_price}，是近年来最低价之一。"
+        key_message = f"当前折扣接近历史最低（史低 ¥{entity.historic_low_price}）"
+        conclusion = f"史低附近，折后 ¥{entity.final_price}，是近年来最低价之一。"
     elif entity.historic_low_price is not None and entity.original_price and entity.original_price > 0:
         # Compare discount depths: current cut% vs historic low cut%
         orig = entity.original_price
@@ -446,15 +446,15 @@ def _price_page(entity: "GameEntity", buy_rec: "BuyRecommendation") -> dict:
         curr_cut = entity.discount_pct or 0
         gap = hist_cut - curr_cut
         key_message = (
-            f"当前 {curr_cut}% off（折后 ${entity.final_price}），"
-            f"史低曾达 {hist_cut}% off（${entity.historic_low_price}），差 {gap}%"
+            f"当前直降 {curr_cut}%（折后 ¥{entity.final_price}），"
+            f"史低曾直降 {hist_cut}%（¥{entity.historic_low_price}），差 {gap} 个百分点"
         )
         conclusion = (
             f"折扣力度比史低低 {gap} 个百分点，但已有 {curr_cut}% 优惠。"
             f"评级 {buy_rec.rating} — {buy_rec.rating_label()}。"
         )
     else:
-        key_message = f"折扣 {entity.discount_pct}% off，折后 ${entity.final_price}"
+        key_message = f"直降 {entity.discount_pct}%，折后 ¥{entity.final_price}"
         conclusion = f"有折扣，无历史价格数据参考。当前评级 {buy_rec.rating}。"
 
     return {
@@ -530,21 +530,21 @@ def _price_history_page(entity: "GameEntity", buy_rec: "BuyRecommendation") -> d
     regular = history[0]["regular"] if history else entity.original_price
 
     if entity.is_at_historic_low:
-        key_message = f"当前折扣接近历史最低（史低 ${min_price:.2f}）"
+        key_message = f"当前折扣接近历史最低（史低 ¥{min_price:.2f}）"
     elif discount_events and regular and regular > 0 and entity.final_price is not None:
         hist_cut = round((regular - min_price) / regular * 100)
         curr_cut = entity.discount_pct or round((regular - entity.final_price) / regular * 100)
         gap = hist_cut - curr_cut
-        key_message = f"当前 {curr_cut}% off，史低曾达 {hist_cut}% off，差距 {gap}%"
+        key_message = f"当前直降 {curr_cut}%，史低曾直降 {hist_cut}%，差距 {gap} 个百分点"
     else:
-        key_message = f"折后 ${entity.final_price}，原价 ${regular}"
+        key_message = f"折后 ¥{entity.final_price}，原价 ¥{regular}"
 
     conclusion = f"折扣历史一览，当前评级 {buy_rec.rating} — {buy_rec.rating_label()}。"
     disc_count = len(discount_events)
     insights = [x for x in [
         f"共记录 {disc_count} 次折扣活动" if disc_count else None,
-        f"史低价格：${min_price:.2f}（原价 ${regular:.2f}）" if regular and regular > 0 else None,
-        f"当前 {entity.discount_pct}% off，折后 ${entity.final_price}" if entity.discount_pct else None,
+        f"史低价格：¥{min_price:.2f}（原价 ¥{regular:.2f}）" if regular and regular > 0 else None,
+        f"当前直降 {entity.discount_pct}%，折后 ¥{entity.final_price}" if entity.discount_pct else None,
     ] if x]
     return {
         "page": 0,
