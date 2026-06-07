@@ -74,6 +74,24 @@ class PostRepository:
         if post:
             post.state = state
 
+    def recently_pushed_appids(self, days: int = 30) -> set[str]:
+        """Appids of games we've generated content for (and didn't reject) within `days`.
+
+        Used to avoid recommending the same game again too soon — keeps content fresh.
+        REJECTED posts don't count (we explicitly chose not to run with that candidate).
+        """
+        cutoff = datetime.utcnow() - timedelta(days=days)
+        stmt = (
+            select(Post.trigger_entity_id)
+            .where(
+                Post.generated_at >= cutoff,
+                Post.trigger_entity_id.is_not(None),
+                Post.state != PostState.REJECTED,
+            )
+            .distinct()
+        )
+        return {row[0] for row in self.session.execute(stmt).all() if row[0]}
+
 
 # ============================================================
 # Game signals + watchlist

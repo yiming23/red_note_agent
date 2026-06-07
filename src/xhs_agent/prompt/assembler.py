@@ -354,6 +354,43 @@ def _language_dist_line(entity) -> str:
     return f"（语言分布：{'，'.join(parts)}）" if parts else ""
 
 
+_LANG_LABELS_CN = {
+    "schinese": "简中",
+    "tchinese": "繁中",
+    "english": "英语",
+    "russian": "俄语",
+    "japanese": "日语",
+    "koreana": "韩语",
+    "german": "德语",
+    "french": "法语",
+    "spanish": "西语",
+    "polish": "波兰语",
+    "portuguese": "葡语",
+    "brazilian": "巴西葡语",
+    "turkish": "土耳其语",
+}
+
+
+def _language_positive_rate_section(entity) -> str:
+    """Return a markdown block of per-language/region positive rates, or "".
+
+    Surfaces patterns like "国区好评率 80%，但俄语区只有 30%" — useful for spotting
+    region-specific issues (localization, server latency, pricing backlash, etc).
+    Only includes languages with enough sample size (tuning-controlled).
+    """
+    rates: dict = getattr(entity, "review_positive_rate_by_language", None) or {}
+    if not rates or len(rates) < 2:
+        return ""
+    dist: dict = getattr(entity, "review_language_dist", None) or {}
+    rows = sorted(rates.items(), key=lambda kv: dist.get(kv[0], 0), reverse=True)
+    lines = []
+    for lang, rate in rows:
+        label = _LANG_LABELS_CN.get(lang, lang)
+        n = dist.get(lang, 0)
+        lines.append(f"- {label}：好评率 {rate * 100:.0f}%（样本 {n} 条）")
+    return "\n## 各语言/地区好评率对比（可用于发现区域性差异）\n" + "\n".join(lines) + "\n"
+
+
 def _player_trend_line(entity) -> str:
     """Return a one-line trend summary for the prompt, or empty string."""
     trend_pct = getattr(entity, "player_count_trend_pct", None)
@@ -573,7 +610,7 @@ Steam 商店页：{entity.store_url}
 
 ## 玩家原话片段（请挑 1-2 条引用，每条 ≤ 100 字）
 {quotes}
-{user_direction_section}{_external_viewpoints_section(entity)}{price_section}{theme_section}{playtime_section}
+{user_direction_section}{_external_viewpoints_section(entity)}{price_section}{theme_section}{playtime_section}{_language_positive_rate_section(entity)}
 
 ## 标题方向（必须含《{entity.name}》）
 参考思路：

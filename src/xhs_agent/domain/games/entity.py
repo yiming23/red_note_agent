@@ -89,6 +89,10 @@ class GameEntity:
     review_language_dist: dict = field(default_factory=dict)
     chinese_review_pct: Optional[float] = None  # (schinese + tchinese) / total
 
+    # Positive rate per language/region (e.g. {"schinese": 0.42, "english": 0.71})
+    # — surfaces "好评率因地区而异" patterns (only languages with enough sample size).
+    review_positive_rate_by_language: dict = field(default_factory=dict)
+
     # External community opinions (from DuckDuckGoCollector, RedditClient, etc.)
     # external_opinions holds raw snippets; key_viewpoints holds LLM-processed viewpoints
     external_opinions: list = field(default_factory=list)  # list[ExternalOpinion]

@@ -106,6 +106,13 @@ class SteamCollectorParams(BaseModel):
     request_interval_sec: float = 0.5
     language: str = "schinese"
 
+    # Review sampling — Steam caps each appreviews page at 100, so to read more
+    # we paginate via cursor. fetch_pages * fetch_per_page = total reviews read.
+    review_fetch_pages: int = 3
+    review_fetch_per_page: int = 100
+    review_llm_pool_size: int = 60          # how many review texts go to the LLM (cost-aware)
+    min_reviews_per_language_for_rate: int = 10  # min sample size to report a language's positive rate
+
 
 class SteamSpyCollectorParams(BaseModel):
     request_interval_sec: float = 1.0
@@ -224,6 +231,7 @@ class CandidateSelectionParams(BaseModel):
     min_review_count_7d_for_standard_candidate: int = 50
     max_prelaunch_candidates_per_run: int = 1
     force_pick_min_review_count_7d: int = 50
+    recent_push_cooldown_days: int = 30  # don't recommend the same game within N days
 
 
 class Tuning(BaseModel):

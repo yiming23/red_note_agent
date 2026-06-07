@@ -359,8 +359,9 @@ class SteamCollector(Collector[GameEntity]):
         num_per_page: int = 20,
         language: str = "schinese,english",
         day_range: Optional[int] = None,
+        cursor: str = "*",
     ) -> dict[str, Any]:
-        """Return raw appreviews payload."""
+        """Return raw appreviews payload. `cursor` enables pagination (pass back `data["cursor"]`)."""
         params = {
             "json": 1,
             "filter": filter_,
@@ -368,6 +369,7 @@ class SteamCollector(Collector[GameEntity]):
             "num_per_page": num_per_page,
             "language": language,
             "purchase_type": "all",
+            "cursor": cursor,
         }
         if day_range:
             params["day_range"] = day_range
@@ -406,28 +408,45 @@ class SteamCollector(Collector[GameEntity]):
                 (entity.total_positive or 0) / entity.total_reviews
             )
 
-        # Recent window
-        recent = self.get_app_reviews(
-            entity.appid,
-            filter_="recent",
-            num_per_page=100,
-            language=language,
-        )
-        self._sleep()
-        reviews = recent.get("reviews") or []
+        # Recent window — paginate to read more than one page (Steam caps each
+        # page at 100). tuning controls how many pages we pull.
+        _pages = tuning.games.collectors.steam.review_fetch_pages
+        _per_page = tuning.games.collectors.steam.review_fetch_per_page
+        reviews: list[dict] = []
+        cursor = "*"
+        for _ in range(max(1, _pages)):
+            recent = self.get_app_reviews(
+                entity.appid,
+                filter_="recent",
+                num_per_page=_per_page,
+                language=language,
+                cursor=cursor,
+            )
+            self._sleep()
+            batch = recent.get("reviews") or []
+            if not batch:
+                break
+            reviews.extend(batch)
+            next_cursor = recent.get("cursor")
+            if not next_cursor or next_cursor == cursor:
+                break
+            cursor = next_cursor
         entity.recent_reviews_count = len(reviews)
 
         now_ts = datetime.now(tz=timezone.utc).timestamp()
         seven_d_ago = now_ts - 7 * 86400
         one_d_ago = now_ts - 86400
 
+        _llm_pool_cap = tuning.games.collectors.steam.review_llm_pool_size
+
         in_24h = 0
         in_7d = 0
         in_7d_positive = 0
         excerpts: list[str] = []
-        llm_pool: list[dict] = []   # text-bearing pool for Review Miner (capped at 30)
+        llm_pool: list[dict] = []   # text-bearing pool for Review Miner (capped, see tuning)
         stats_pool: list[dict] = [] # metadata-only pool for stats (all reviews)
         lang_counts: dict[str, int] = {}
+        lang_voted: dict[str, dict[str, int]] = {}  # language -> {"up": n, "total": n}
 
         for r in reviews:
             created = r.get("timestamp_created") or 0
@@ -450,12 +469,16 @@ class SteamCollector(Collector[GameEntity]):
                 "language": language,
             })
             lang_counts[language] = lang_counts.get(language, 0) + 1
+            lv = lang_voted.setdefault(language, {"up": 0, "total": 0})
+            lv["total"] += 1
+            if voted_up:
+                lv["up"] += 1
 
             text = (r.get("review") or "").strip()
             if text:
                 if len(excerpts) < 5:
                     excerpts.append(text[:280])
-                if len(llm_pool) < 30:
+                if len(llm_pool) < _llm_pool_cap:
                     llm_pool.append({
                         "text": text[:200],
                         "voted_up": voted_up,
@@ -474,6 +497,17 @@ class SteamCollector(Collector[GameEntity]):
         entity.recent_review_pool = llm_pool
         entity.review_stats_pool = stats_pool
         entity.review_language_dist = lang_counts
+
+        # Per-language positive rate — surfaces "好评率因地区/语言而异" patterns
+        # (e.g. CN players love it but JP/RU reviews are bombing it, or vice versa).
+        # Only keep languages with enough volume to be meaningful.
+        _min_lang_n = tuning.games.collectors.steam.min_reviews_per_language_for_rate
+        entity.review_positive_rate_by_language = {
+            lang: round(v["up"] / v["total"], 3)
+            for lang, v in lang_voted.items()
+            if v["total"] >= _min_lang_n
+        }
+
         if stats_pool:
             chinese = lang_counts.get("schinese", 0) + lang_counts.get("tchinese", 0)
             entity.chinese_review_pct = round(chinese / len(stats_pool) * 100, 1)

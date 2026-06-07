@@ -175,6 +175,25 @@ def run_content_pipeline(
             )
         )
 
+        # 3b. Drop games we've already generated content for recently — keeps the
+        #     feed fresh and avoids repeating the same game within a cooldown window.
+        _cooldown_days = tuning.candidate_selection.recent_push_cooldown_days
+        with session_scope() as s:
+            recent_appids = PostRepository(s).recently_pushed_appids(days=_cooldown_days)
+        if recent_appids:
+            before = len(signals)
+            signals = [sig for sig in signals if sig.entity_id not in recent_appids]
+            log.info(
+                "signals_filtered_recent_pushes",
+                dropped=before - len(signals),
+                remaining=len(signals),
+                cooldown_days=_cooldown_days,
+            )
+        if not signals:
+            log.info("pipeline_no_signals_after_cooldown_filter")
+            _finish(run_id, PipelineStatus.SUCCESS, 0, errors)
+            return PipelineResult(run_id, signals_detected, 0, 0, 0, errors)
+
         # 4. LLM judgment — Haiku decides what's actually worth writing
         # Send a window of top signals to keep prompt size sane
         top_signals = signals[: max(max_candidates_per_run * 3, 6)]
