@@ -172,6 +172,12 @@ class Post(Base):
     themes_summary: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # {theme: share_pct}
     playtime_buckets_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
+    # Frozen objective facts captured at generation time — used to keep rewrite
+    # revisions of subjective cards (cover/combined_summary/recommendation)
+    # numerically consistent with the originally-rendered objective chart images,
+    # even if live Steam data drifts before a rewrite happens.
+    objective_snapshot: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+
     # Post-publish (manual fill via scripts/log_post_result.py)
     published_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     edit_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

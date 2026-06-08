@@ -139,6 +139,45 @@ def send_revision(post: Post, formatted: FormattedPost, iteration_idx: int) -> _
     return _send_message_sync(text=text, reply_markup=keyboard)
 
 
+def send_revision_with_images(
+    post: Post,
+    formatted: FormattedPost,
+    iteration_idx: int,
+    pages: list[dict],
+) -> _SendResult:
+    """Push a rewritten version with a refreshed media group.
+
+    Mirrors `send_candidate_with_images`: objective chart images are reused
+    as-is (their `image_path` is untouched by the rewrite), subjective cards
+    (cover / combined_summary / recommendation) carry freshly rendered images.
+    Falls back to text-only `send_revision` if no images are available.
+    """
+    if not settings.telegram_push_enabled or settings.telegram_dry_run:
+        log.info("telegram_revision_skipped", post_id=post.id, dry_run=settings.telegram_dry_run)
+        return _SendResult(success=True, telegram_message_id=None, error="dry_run_or_disabled")
+
+    from pathlib import Path
+
+    image_paths = []
+    for p in sorted(pages, key=lambda p: p.get("page", 0)):
+        ip = p.get("image_path")
+        if ip and Path(ip).exists():
+            image_paths.append(ip)
+        else:
+            log.warning("revision_image_missing_skipped", post_id=post.id,
+                        page=p.get("page"), type=p.get("type"))
+
+    if not image_paths:
+        return send_revision(post, formatted, iteration_idx)
+
+    caption = f"🔄 候选 #{post.id} 已按反馈更新"
+    _send_media_group_sync(image_paths[:10], caption=caption)
+
+    text = _build_revision_message(post, formatted, iteration_idx)
+    keyboard = _build_inline_keyboard(post.id)
+    return _send_message_sync(text=text, reply_markup=keyboard)
+
+
 def _send_clean_copy(post_id: int) -> None:
     """Send images + clean plain-text copy after approval, for easy copy-paste."""
     with session_scope() as s:
@@ -696,7 +735,7 @@ async def _on_text_reply(update, context) -> None:
     await update.message.reply_text(f"收到反馈，对候选 #{post_id} 重写中…")
 
     # Run the rewrite (sync, may take a few seconds — fine for our scale)
-    revised, iteration_idx = await asyncio.to_thread(
+    revised, iteration_idx, new_pages = await asyncio.to_thread(
         _rewrite_post_sync, post_id, feedback
     )
 
@@ -707,7 +746,13 @@ async def _on_text_reply(update, context) -> None:
     formatted = format_post(
         title=revised.title, content=revised.content, hashtags=revised.hashtags
     )
-    res = send_revision(post=_load_post_lite(post_id), formatted=formatted, iteration_idx=iteration_idx)
+    if new_pages:
+        res = send_revision_with_images(
+            post=_load_post_lite(post_id), formatted=formatted,
+            iteration_idx=iteration_idx, pages=new_pages,
+        )
+    else:
+        res = send_revision(post=_load_post_lite(post_id), formatted=formatted, iteration_idx=iteration_idx)
     if res.success and res.telegram_message_id:
         with session_scope() as s:
             post = PostRepository(s).get(post_id)
@@ -762,12 +807,35 @@ def _count_pending_posts() -> int:
         return len(s.scalars(stmt).all())
 
 
+# Page types whose content/visuals are *subjective* (driven by buy_rec/title/
+# narrative) — these get rebuilt + re-rendered on rewrite. Everything else is
+# an *objective* data chart (price/trend/theme/similar-games/etc.) and keeps
+# its originally-rendered image untouched.
+_SUBJECTIVE_PAGE_TYPES = {"cover", "combined_summary_card", "recommendation"}
+
+
 def _rewrite_post_sync(post_id: int, feedback: str):
-    """Run rewrite_agent + record iteration to DB. Returns (GeneratedContent, iteration_idx)."""
+    """Run rewrite_agent + buy_rec_rewriter, re-render subjective cards, record iteration.
+
+    Returns (GeneratedContent, iteration_idx, new_pages) — new_pages is the full
+    page list with subjective cards re-rendered and objective charts reused as-is,
+    or None if rewrite failed / no pages exist on the post.
+    """
+    from types import SimpleNamespace
+
+    from xhs_agent.agents.buy_or_wait import BuyRecommendation
+    from xhs_agent.agents.buy_rec_rewriter import revise as revise_buy_rec
+    from xhs_agent.processors.page_builder import (
+        _combined_summary_page,
+        _cover_page,
+        _recommendation_page,
+    )
+    from xhs_agent.visualization import render_all_pages
+
     with session_scope() as s:
         post = PostRepository(s).get(post_id)
         if post is None:
-            return None, 0
+            return None, 0, None
 
         revised = run_rewrite_agent(
             original_title=post.title,
@@ -781,7 +849,83 @@ def _rewrite_post_sync(post_id: int, feedback: str):
 
         if not revised.success:
             log.error("rewrite_failed", post_id=post_id, error=revised.error_message)
-            return None, 0
+            return None, 0, None
+
+        total_cost = revised.cost_usd
+
+        # ── Re-derive the subjective verdict (rating/one_sentence/risks/...)
+        #    so it matches the new direction while staying anchored to the
+        #    frozen objective facts — then rebuild + re-render only the
+        #    subjective cards (cover / combined_summary / recommendation).
+        new_pages: Optional[list[dict]] = None
+        old_pages = list(post.pages or [])
+        snapshot = post.objective_snapshot or {}
+        if old_pages and snapshot:
+            original_buy_rec = BuyRecommendation(
+                rating=post.buy_rating or "C",
+                one_sentence=post.cover_text or "",
+                suitable_for=list(post.suitable_for or []),
+                not_suitable_for=list(post.not_suitable_for or []),
+                key_risks=list(post.key_risks or []),
+                wait_for=post.wait_for or "",
+            )
+            try:
+                revised_buy_rec = revise_buy_rec(
+                    original=original_buy_rec,
+                    feedback=feedback,
+                    objective_facts=snapshot,
+                    game_name=post.trigger_entity_name or "",
+                    revised_title=revised.title,
+                    revised_content=revised.content,
+                )
+                total_cost += revised_buy_rec.cost_usd
+
+                snap_entity = SimpleNamespace(**{
+                    "appid": snapshot.get("appid"),
+                    "name": snapshot.get("name") or post.trigger_entity_name,
+                    "historical_positive_rate": snapshot.get("historical_positive_rate"),
+                    "recent_7d_positive_rate": snapshot.get("recent_7d_positive_rate"),
+                    "recent_7d_review_count": snapshot.get("recent_7d_review_count"),
+                    "total_reviews": snapshot.get("total_reviews"),
+                    "current_player_count": snapshot.get("current_player_count"),
+                })
+
+                rebuilt = list(old_pages)
+                for i, p in enumerate(rebuilt):
+                    ptype = p.get("type")
+                    if ptype == "cover":
+                        rebuilt[i] = _cover_page(snap_entity, revised_buy_rec, revised.title, revised.content)
+                        rebuilt[i]["page"] = p.get("page", rebuilt[i]["page"])
+                    elif ptype == "combined_summary_card":
+                        rebuilt[i] = _combined_summary_page(snap_entity, revised_buy_rec)
+                        rebuilt[i]["page"] = p.get("page", rebuilt[i]["page"])
+                    elif ptype == "recommendation":
+                        rebuilt[i] = _recommendation_page(revised_buy_rec)
+                        rebuilt[i]["page"] = p.get("page", rebuilt[i]["page"])
+
+                subjective_pages = [p for p in rebuilt if p.get("type") in _SUBJECTIVE_PAGE_TYPES]
+                if subjective_pages:
+                    import tempfile
+                    from pathlib import Path
+                    out_dir = Path(tempfile.mkdtemp(prefix="xhs_viz_"))
+                    render_all_pages(
+                        entity=snap_entity,
+                        buy_rec=revised_buy_rec,
+                        pages=subjective_pages,
+                        title=revised.title,
+                        out_dir=out_dir,
+                    )
+                new_pages = rebuilt
+
+                post.buy_rating = revised_buy_rec.rating
+                post.suitable_for = revised_buy_rec.suitable_for
+                post.not_suitable_for = revised_buy_rec.not_suitable_for
+                post.key_risks = revised_buy_rec.key_risks
+                post.wait_for = revised_buy_rec.wait_for
+                post.cover_text = revised_buy_rec.one_sentence
+            except Exception as exc:
+                log.warning("rewrite_image_regen_failed", post_id=post_id, error=str(exc))
+                new_pages = None
 
         # Record iteration
         iterations = list(post.review_iterations or [])
@@ -800,9 +944,11 @@ def _rewrite_post_sync(post_id: int, feedback: str):
         post.content = revised.content
         post.hashtags = revised.hashtags
         post.state = PostState.ITERATING
-        post.llm_cost_usd = (post.llm_cost_usd or 0) + revised.cost_usd
+        post.llm_cost_usd = (post.llm_cost_usd or 0) + total_cost
+        if new_pages is not None:
+            post.pages = new_pages
 
-        return revised, iteration_idx
+        return revised, iteration_idx, new_pages
 
 
 def _load_post_lite(post_id: int) -> Post:

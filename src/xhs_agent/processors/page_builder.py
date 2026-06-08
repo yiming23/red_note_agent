@@ -51,6 +51,45 @@ def _is_prelaunch(entity: "GameEntity") -> bool:
     return reviews_7d < 10 and total < 50
 
 
+# Scalar entity fields the *subjective* cards (cover / combined_summary / —
+# recommendation only needs buy_rec) read from `entity`. Frozen at generation
+# time into `Post.objective_snapshot` so that a later rewrite can regenerate
+# these cards with numbers that exactly match the originally-rendered objective
+# chart images, even if live Steam data has since drifted.
+_OBJECTIVE_SNAPSHOT_FIELDS = (
+    "appid",
+    "name",
+    "historical_positive_rate",
+    "recent_7d_positive_rate",
+    "recent_7d_review_count",
+    "total_reviews",
+    "current_player_count",
+)
+
+
+def snapshot_objective_facts(entity: "GameEntity") -> dict:
+    """Freeze the small set of scalar facts subjective cards depend on."""
+    return {field: getattr(entity, field, None) for field in _OBJECTIVE_SNAPSHOT_FIELDS}
+
+
+def _cover_page(entity: "GameEntity", buy_rec: "BuyRecommendation", title: str, content: str) -> dict:
+    """Page 1: cover card. Shared by build_pages / build_pages_from_plan / rewrite."""
+    hook = _extract_hook(content) or title
+    return {
+        "page": 1,
+        "type": "cover",
+        "title": title,
+        "body": hook,
+        "chart_type": "cover_card",
+        "data": {"game_name": entity.name, "hook": hook},
+        "key_message": title,
+        "subtitle": "",
+        "how_to_read": "",
+        "conclusion": buy_rec.one_sentence,
+        "image_path": None,
+    }
+
+
 def build_pages(
     *,
     title: str,
@@ -66,22 +105,9 @@ def build_pages(
     key_message, subtitle, how_to_read, conclusion.
     """
     pages: list[dict] = []
-    hook = _extract_hook(content) or title
 
     # ── Page 1: Cover (always) ─────────────────────────────────
-    pages.append({
-        "page": 1,
-        "type": "cover",
-        "title": title,
-        "body": hook,
-        "chart_type": "cover_card",
-        "data": {"game_name": entity.name, "hook": hook},
-        "key_message": title,
-        "subtitle": "",
-        "how_to_read": "",
-        "conclusion": buy_rec.one_sentence,
-        "image_path": None,
-    })
+    pages.append(_cover_page(entity, buy_rec, title, content))
 
     # ── Page 2: Combined summary (rating + stats + risks) ─────
     pages.append(_combined_summary_page(entity, buy_rec))
@@ -733,22 +759,9 @@ def build_pages_from_plan(
     from xhs_agent.agents.content_director import AVAILABLE_CHART_TYPES
 
     pages: list[dict] = []
-    hook = _extract_hook(content) or title
 
     # ── Page 1: Cover ─────────────────────────────────────────
-    pages.append({
-        "page": 1,
-        "type": "cover",
-        "title": title,
-        "body": hook,
-        "chart_type": "cover_card",
-        "data": {"game_name": entity.name, "hook": hook},
-        "key_message": title,
-        "subtitle": "",
-        "how_to_read": "",
-        "conclusion": buy_rec.one_sentence,
-        "image_path": None,
-    })
+    pages.append(_cover_page(entity, buy_rec, title, content))
 
     # ── Page 2: Combined summary ───────────────────────────────
     pages.append(_combined_summary_page(entity, buy_rec))

@@ -36,7 +36,7 @@ from xhs_agent.domain.games.collectors.duckduckgo import DuckDuckGoCollector
 from xhs_agent.domain.games.collectors.similar_games import SimilarGamesCollector
 from xhs_agent.domain.games.collectors.steam import SteamCollector
 from xhs_agent.observability.logger import get_logger
-from xhs_agent.processors.page_builder import build_pages_from_plan
+from xhs_agent.processors.page_builder import build_pages_from_plan, snapshot_objective_facts
 from xhs_agent.processors.playtime_buckets import compute_buckets
 from xhs_agent.publishers.telegram_push import send_candidate_with_images, send_plain
 from xhs_agent.storage.db import session_scope
@@ -284,6 +284,7 @@ def run_manual_pipeline(
                 wait_for=buy_rec.wait_for if buy_rec else None,
                 themes_summary=themes_dict,
                 playtime_buckets_json=buckets.as_dict() if buckets else None,
+                objective_snapshot=snapshot_objective_facts(entity),
             )
             post_id = post.id
             post_for_send = post

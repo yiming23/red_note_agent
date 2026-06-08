@@ -21,7 +21,7 @@ from xhs_agent.agents import (
     judge_signals,
 )
 from xhs_agent.processors.daily_aggregator import aggregate_daily
-from xhs_agent.processors.page_builder import build_pages
+from xhs_agent.processors.page_builder import build_pages, snapshot_objective_facts
 from xhs_agent.processors.playtime_buckets import compute_buckets
 from xhs_agent.visualization import render_all_pages
 from xhs_agent.budget.guard import BudgetExceededError
@@ -464,6 +464,7 @@ def run_content_pipeline(
                     wait_for=buy_rec.wait_for if buy_rec else None,
                     themes_summary=themes_summary_dict,
                     playtime_buckets_json=buckets.as_dict() if buckets else None,
+                    objective_snapshot=snapshot_objective_facts(entity),
                 )
                 post_id = post.id
                 post_for_send = post
