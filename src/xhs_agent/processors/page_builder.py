@@ -72,16 +72,29 @@ def snapshot_objective_facts(entity: "GameEntity") -> dict:
     return {field: getattr(entity, field, None) for field in _OBJECTIVE_SNAPSHOT_FIELDS}
 
 
-def _cover_page(entity: "GameEntity", buy_rec: "BuyRecommendation", title: str, content: str) -> dict:
-    """Page 1: cover card. Shared by build_pages / build_pages_from_plan / rewrite."""
+def _cover_page(
+    entity: "GameEntity",
+    buy_rec: "BuyRecommendation",
+    title: str,
+    content: str,
+    cover_image_path: Optional[str] = None,
+) -> dict:
+    """Page 1: cover card. Shared by build_pages / build_pages_from_plan / rewrite.
+
+    If `cover_image_path` is set (user uploaded a custom cover image), it's stashed
+    in `data` so the renderer can use the user's artwork verbatim — no text overlay.
+    """
     hook = _extract_hook(content) or title
+    data = {"game_name": entity.name, "hook": hook}
+    if cover_image_path:
+        data["cover_image_path"] = cover_image_path
     return {
         "page": 1,
         "type": "cover",
         "title": title,
         "body": hook,
         "chart_type": "cover_card",
-        "data": {"game_name": entity.name, "hook": hook},
+        "data": data,
         "key_message": title,
         "subtitle": "",
         "how_to_read": "",

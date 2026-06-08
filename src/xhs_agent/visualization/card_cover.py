@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from xhs_agent.visualization.base import (
     ACCENT_COLOR,
@@ -32,21 +32,49 @@ def render_cover(
     buy_rec: "BuyRecommendation",
     out_path: Path,
     title: str = "",
+    cover_image_path: Optional[str] = None,
 ) -> Path:
-    """Render a cover card and save to out_path. Returns out_path."""
+    """Render a cover card and save to out_path. Returns out_path.
+
+    If `cover_image_path` points to an existing user-uploaded image, it
+    completely replaces the auto-generated cover (no text/badge overlay —
+    the user's own artwork is used as-is, just cropped to fit the canvas).
+    """
     from PIL import Image
 
-    appid = getattr(entity, "appid", None)
-    steam_img = _try_fetch_steam_image(appid) if appid else None
-
-    if steam_img:
-        img = _render_layered_cover(entity, buy_rec, title, steam_img)
+    if cover_image_path and Path(cover_image_path).exists():
+        img = _render_user_image_cover(Path(cover_image_path))
     else:
-        img = _render_text_cover(entity, buy_rec, title)
+        appid = getattr(entity, "appid", None)
+        steam_img = _try_fetch_steam_image(appid) if appid else None
+
+        if steam_img:
+            img = _render_layered_cover(entity, buy_rec, title, steam_img)
+        else:
+            img = _render_text_cover(entity, buy_rec, title)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     img.save(str(out_path), "PNG", optimize=True)
     return out_path
+
+
+def _render_user_image_cover(image_path: Path):
+    """Use a user-uploaded image as the cover, verbatim — no text overlay.
+
+    Keeps only the thin top/bottom accent strips that all other cards in the
+    set share, so the custom cover still reads as part of the same deck while
+    fully respecting the user's own artwork (no title/rating/verdict text).
+    """
+    from PIL import Image, ImageDraw
+
+    raw = Image.open(image_path).convert("RGB")
+    canvas = _center_crop_canvas(raw)
+
+    draw = ImageDraw.Draw(canvas)
+    draw.rectangle([0, 0, IMG_W, 14], fill=ACCENT_COLOR)
+    draw.rectangle([0, IMG_H - 14, IMG_W, IMG_H], fill=ACCENT_COLOR)
+
+    return canvas
 
 
 def _try_fetch_steam_image(appid: str):

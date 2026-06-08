@@ -88,7 +88,9 @@ def render_all_pages(
 
 def _render_cover(*, page, entity, buy_rec, title, out_path, **_kw) -> None:
     from xhs_agent.visualization.card_cover import render_cover
-    render_cover(entity=entity, buy_rec=buy_rec, out_path=out_path, title=title)
+    cover_image_path = (page.get("data") or {}).get("cover_image_path")
+    render_cover(entity=entity, buy_rec=buy_rec, out_path=out_path, title=title,
+                 cover_image_path=cover_image_path)
 
 
 def _render_text_card(*, page, entity, buy_rec, out_path, **_kw) -> None:

@@ -24,6 +24,7 @@ import asyncio
 import json as json_module
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
 import httpx
@@ -372,6 +373,7 @@ def build_bot_app():
     app.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, _on_text_reply)
     )
+    app.add_handler(MessageHandler(filters.PHOTO, _on_photo_upload))
     app.add_error_handler(_on_error)
     return app
 
@@ -894,7 +896,8 @@ def _rewrite_post_sync(post_id: int, feedback: str):
                 for i, p in enumerate(rebuilt):
                     ptype = p.get("type")
                     if ptype == "cover":
-                        rebuilt[i] = _cover_page(snap_entity, revised_buy_rec, revised.title, revised.content)
+                        rebuilt[i] = _cover_page(snap_entity, revised_buy_rec, revised.title, revised.content,
+                                                 cover_image_path=post.cover_image_path)
                         rebuilt[i]["page"] = p.get("page", rebuilt[i]["page"])
                     elif ptype == "combined_summary_card":
                         rebuilt[i] = _combined_summary_page(snap_entity, revised_buy_rec)
@@ -960,3 +963,143 @@ def _load_post_lite(post_id: int) -> Post:
         # Detach so we can use after the session closes
         s.expunge(post)
         return post
+
+
+# ============================================================
+# Custom cover image upload
+# ============================================================
+
+# Permanent storage for user-uploaded cover images — survives the nightly
+# tempfile cleanup and persists across multiple rewrite iterations (mirrors
+# the assets/steam_assets/ caching convention).
+_USER_COVERS_DIR = Path(__file__).resolve().parents[3] / "assets" / "user_covers"
+
+
+async def _on_photo_upload(update, context) -> None:
+    """Receive a user-uploaded image and use it as the candidate's cover.
+
+    Replaces the auto-generated Steam-background cover with the user's own
+    artwork verbatim (no title/rating/verdict text overlay). The choice is
+    persisted on the post so it survives later rewrite iterations too.
+    """
+    if not _is_authorized(update):
+        return
+
+    post_id = _find_target_post(update)
+    if post_id is None:
+        await update.message.reply_text(
+            "现在没有正在审的候选，不知道这张图是给哪条用的。先回复某条候选消息再发图～"
+        )
+        return
+
+    photo = update.message.photo[-1] if update.message.photo else None
+    if photo is None:
+        return
+
+    await update.message.reply_text(f"收到封面图，正在为候选 #{post_id} 替换…")
+
+    try:
+        tg_file = await photo.get_file()
+        dest_dir = _USER_COVERS_DIR / str(post_id)
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        dest_path = dest_dir / f"cover_{ts}.jpg"
+        await tg_file.download_to_drive(str(dest_path))
+    except Exception as exc:
+        log.error("cover_upload_download_failed", post_id=post_id, error=str(exc))
+        await update.message.reply_text(f"❌ 图片下载失败：{exc}")
+        return
+
+    try:
+        new_cover_path = await asyncio.to_thread(
+            _regen_cover_only_sync, post_id, str(dest_path)
+        )
+    except Exception as exc:
+        log.error("cover_regen_failed", post_id=post_id, error=str(exc))
+        await update.message.reply_text(f"❌ 封面替换失败：{exc}")
+        return
+
+    if new_cover_path is None:
+        await update.message.reply_text("⚠️ 封面替换失败，候选保持原样。")
+        return
+
+    try:
+        with open(new_cover_path, "rb") as fh:
+            await update.message.reply_photo(
+                photo=fh,
+                caption=f"✅ 候选 #{post_id} 封面已替换为你上传的图片（后续修改意见也会保留这张封面）",
+            )
+    except Exception as exc:
+        log.warning("cover_confirm_send_failed", post_id=post_id, error=str(exc))
+        await update.message.reply_text(f"✅ 候选 #{post_id} 封面已替换为你上传的图片")
+
+
+def _regen_cover_only_sync(post_id: int, cover_image_path: str) -> Optional[str]:
+    """Rebuild + re-render only the cover page using the user's uploaded image.
+
+    Lightweight path — no LLM calls, no full rewrite. Mirrors the
+    snapshot/SimpleNamespace stand-in pattern used by `_rewrite_post_sync`,
+    but only touches the cover page; everything else (objective charts,
+    other subjective cards) is left untouched.
+
+    Returns the path to the newly-rendered cover image, or None on failure.
+    """
+    import tempfile
+
+    from types import SimpleNamespace
+
+    from xhs_agent.agents.buy_or_wait import BuyRecommendation
+    from xhs_agent.processors.page_builder import _cover_page
+    from xhs_agent.visualization import render_all_pages
+
+    with session_scope() as s:
+        post = PostRepository(s).get(post_id)
+        if post is None or not post.pages:
+            return None
+
+        snapshot = post.objective_snapshot or {}
+        snap_entity = SimpleNamespace(**{
+            "appid": snapshot.get("appid"),
+            "name": snapshot.get("name") or post.trigger_entity_name,
+            "historical_positive_rate": snapshot.get("historical_positive_rate"),
+            "recent_7d_positive_rate": snapshot.get("recent_7d_positive_rate"),
+            "recent_7d_review_count": snapshot.get("recent_7d_review_count"),
+            "total_reviews": snapshot.get("total_reviews"),
+            "current_player_count": snapshot.get("current_player_count"),
+        })
+        buy_rec = BuyRecommendation(
+            rating=post.buy_rating or "C",
+            one_sentence=post.cover_text or "",
+            suitable_for=list(post.suitable_for or []),
+            not_suitable_for=list(post.not_suitable_for or []),
+            key_risks=list(post.key_risks or []),
+            wait_for=post.wait_for or "",
+        )
+
+        pages = list(post.pages or [])
+        cover_page = None
+        for i, p in enumerate(pages):
+            if p.get("type") == "cover":
+                rebuilt = _cover_page(snap_entity, buy_rec, post.title, post.content,
+                                      cover_image_path=cover_image_path)
+                rebuilt["page"] = p.get("page", rebuilt["page"])
+                pages[i] = rebuilt
+                cover_page = rebuilt
+                break
+
+        if cover_page is None:
+            return None
+
+        out_dir = Path(tempfile.mkdtemp(prefix="xhs_viz_"))
+        render_all_pages(
+            entity=snap_entity,
+            buy_rec=buy_rec,
+            pages=[cover_page],
+            title=post.title,
+            out_dir=out_dir,
+        )
+
+        post.pages = pages
+        post.cover_image_path = cover_image_path
+
+        return cover_page.get("image_path")

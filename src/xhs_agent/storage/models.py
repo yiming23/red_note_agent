@@ -164,6 +164,10 @@ class Post(Base):
     pages: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)         # list[PageDict]
     cover_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)     # page 1 hook text
     comment_prompt: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+
+    # User-uploaded custom cover image (replaces the auto-generated Steam-bg
+    # cover with no text overlay). Persists across rewrite iterations.
+    cover_image_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     buy_rating: Mapped[Optional[str]] = mapped_column(String(4), nullable=True)  # A/B/C/D/E
     suitable_for: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
     not_suitable_for: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
